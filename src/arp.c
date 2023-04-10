@@ -59,6 +59,13 @@ void arp_print()
 void arp_req(uint8_t *target_ip)
 {
     // TO-DO
+    buf_t *buf = &txbuf;
+    buf_init(buf, sizeof(arp_pkt_t));  //初始化txbuf
+    arp_pkt_t packet = arp_init_pkt;
+    packet.opcode16 = swap16(ARP_REQUEST);  //填充opcode
+    memcpy(packet.target_ip, target_ip, NET_IP_LEN);  //填充target_ip
+    memcpy(buf->data, &packet, sizeof(arp_pkt_t));
+    ethernet_out(buf, ether_broadcast_mac, NET_PROTOCOL_ARP);
 }
 
 /**
@@ -70,6 +77,14 @@ void arp_req(uint8_t *target_ip)
 void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
 {
     // TO-DO
+    buf_t *buf = &txbuf;
+    buf_init(buf, sizeof(arp_pkt_t));  //初始化txbuf
+    arp_pkt_t packet = arp_init_pkt;
+    packet.opcode16 = swap16(ARP_REPLY);  //填充opcode
+    memcpy(packet.target_ip, target_ip, NET_IP_LEN);  //填充target_ip
+    memcpy(packet.target_mac, target_mac, NET_MAC_LEN);  //填充target_mac
+    memcpy(buf->data, &packet, sizeof(arp_pkt_t));
+    ethernet_out(buf, target_mac, NET_PROTOCOL_ARP); 
 }
 
 /**
@@ -81,6 +96,38 @@ void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
 void arp_in(buf_t *buf, uint8_t *src_mac)
 {
     // TO-DO
+    //数据包是否缺失
+    if(buf->len < sizeof(arp_pkt_t)){
+        return;
+    }else{
+        arp_pkt_t *arp = (arp_pkt_t *)buf->data;
+        if(arp->hw_type16 != swap16(ARP_HW_ETHER) ||
+            arp->hw_len != NET_MAC_LEN ||
+            arp->pro_type16 != swap16(NET_PROTOCOL_IP) ||
+            arp->pro_len != NET_IP_LEN ||
+            (swap16(arp->opcode16) != ARP_REQUEST && swap16(arp->opcode16) != ARP_REPLY)){
+                return;
+            }else{
+                map_set(&arp_table, arp->sender_ip, src_mac);
+                buf_t *cache_buf = map_get(&arp_buf, arp->sender_ip);
+
+                //cache_buf非空意味着当前接收方有需要发送数据包的目标
+                //此时接收到的ARP数据包一定是ARP_REPLY
+                //并且需要发送的目标即为该ARP数据包的发送方
+                if(cache_buf != NULL){
+                    ethernet_out(cache_buf, arp->sender_mac, NET_PROTOCOL_IP);
+                    map_delete(&arp_buf, arp->sender_ip);
+
+                //cache_buf为空意味着当前接收方没有需要发送数据包的目标
+                //此时接收到的ARP数据包一定是ARP_REQUEST
+                //需要向该ARP数据包的发送方发送ARP_REPLY
+                }else{
+                    if(swap16(arp->opcode16) == ARP_REQUEST && !memcmp(arp->target_ip, net_if_ip, NET_IP_LEN)){
+                        arp_resp(arp->sender_ip, arp->sender_mac);
+                    }
+                }
+            }
+    }
 }
 
 /**
@@ -93,6 +140,19 @@ void arp_in(buf_t *buf, uint8_t *src_mac)
 void arp_out(buf_t *buf, uint8_t *ip)
 {
     // TO-DO
+    uint8_t *target_mac = map_get(&arp_table, ip);
+    if(target_mac == NULL){
+        buf_t *cache_buf = map_get(&arp_buf, ip);
+        if(cache_buf != NULL){
+            return;
+        }else{
+            //设置目标ip的map缓存
+            map_set(&arp_buf, ip, buf);
+            arp_req(ip);
+        }
+    }else{
+        ethernet_out(buf, target_mac, NET_PROTOCOL_IP);
+    }
 }
 
 /**

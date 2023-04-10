@@ -78,4 +78,22 @@ uint8_t ip_prefix_match(uint8_t *ipa, uint8_t *ipb)
 uint16_t checksum16(uint16_t *data, size_t len)
 {
     // TO-DO
+    uint32_t checksum = 0;
+    while(len > 1){
+        checksum += swap16(*data);  //大小端进行转换
+        data++;
+        len -= sizeof(uint16_t);  //sizeof返回字节数
+    }
+
+    //最后剩余8bit相加
+    if(len != 0){
+        checksum += *data << 8;
+    }
+
+    //相加结果高16位不为0
+    while(checksum >> 16){
+        checksum = (checksum >> 16) + (checksum & 0xffff);
+    }
+    checksum += (checksum >> 16);
+    return ~(uint16_t)checksum;
 }

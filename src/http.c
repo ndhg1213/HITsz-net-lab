@@ -81,20 +81,61 @@ static void close_http(tcp_connect_t* tcp) {
 
 static void send_file(tcp_connect_t* tcp, const char* url) {
     FILE* file;
-    uint32_t size;
-    // const char* content_type = "text/html";
     char file_path[255];
     char tx_buffer[1024];
 
-    /*
-    解析url路径，查看是否是查看XHTTP_DOC_DIR目录下的文件
-    如果不是，则发送404 NOT FOUND
-    如果是，则用HTTP/1.0协议发送
+    //解析url路径
+    memcpy(file_path, XHTTP_DOC_DIR, sizeof(XHTTP_DOC_DIR));
 
-    注意，本实验的WEB服务器网页存放在XHTTP_DOC_DIR目录中
-    */
+    //如果只有/则默认为index.html
+    if(strlen(url) == 1){
+        strcat(file_path, "/index.html");
+    }else{
+        strcat(file_path, url);
+    }
+    file = fopen(file_path, "rb");  //二进制方法打开文件
 
-   // TODO
+    //文件不存在发送404
+    if(file == NULL){
+
+        //填充http报头
+        sprintf(tx_buffer, "HTTP/1.0 404 NOT FOUND\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "Sever: \r\n");  //提供服务者缺省
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "Content-Type: text/html\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "<HTML><TITLE>Not Found</TITLE>\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "The resource specified\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "is unavailable or nonexistent.\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "</BODY></HTML>\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+    }
+    
+    //资源存在
+    else{
+        sprintf(tx_buffer, "HTTP/1.0 200 OK\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "Sever: \r\n");  //提供服务者缺省
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "Content-Type: \r\n");  //由于需要传输text与jpg直接缺省
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        sprintf(tx_buffer, "\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+
+        //读取html以及jpg文件
+        memset(tx_buffer, 0, sizeof(tx_buffer));
+        while(fread(tx_buffer, sizeof(char), sizeof(tx_buffer), file) > 0){
+            http_send(tcp, tx_buffer, sizeof(tx_buffer));
+            memset(tx_buffer, 0, sizeof(tx_buffer));
+        }
+        fclose(file);
+    }
 
 }
 
@@ -112,7 +153,6 @@ static void http_handler(tcp_connect_t* tcp, connect_state_t state) {
 
 
 // 在端口上创建服务器。
-
 int http_server_open(uint16_t port) {
     if (!tcp_open(port, http_handler)) {
         return -1;
@@ -122,7 +162,6 @@ int http_server_open(uint16_t port) {
 }
 
 // 从FIFO取出请求并处理。新的HTTP请求时会发送到FIFO中等待处理。
-
 void http_server_run(void) {
     tcp_connect_t* tcp;
     char url_path[255];
@@ -132,33 +171,39 @@ void http_server_run(void) {
         int i;
         char* c = rx_buffer;
 
+        //调用get_line获取请求报文的方法
+        size_t size = get_line(tcp, c, 1023);
+        if(size == 0){
+            close_http(tcp);
+            continue;
+        }
 
-        /*
-        1、调用get_line从rx_buffer中获取一行数据，如果没有数据，则调用close_http关闭tcp，并继续循环
-        */
+        //判断是否是GET请求
+        char method[4];
+        memcpy(method, c, 3);
+        if(strcmp(method, "GET")){
+            close_http(tcp);
+            continue;
+        }
 
-       // TODO
+        //解析路径
+        i = 0;
+        int j = 0;
+        while(c[i] != ' '){
+            i++;
+        }
+        i++; //跳过空格
+        while(c[i] != ' '){
+            url_path[j] = c[i];
+            j++;
+            i++;
+        }
+        url_path[j] = '\0';
 
+        send_file(tcp, url_path);
 
-        /*
-        2、检查是否有GET请求，如果没有，则调用close_http关闭tcp，并继续循环
-        */
-
-       // TODO
-
-
-        /*
-        3、解析GET请求的路径，注意跳过空格，找到GET请求的文件，调用send_file发送文件
-        */
-
-       // TODO
-
-
-        /*
-        4、调用close_http关掉连接
-        */
-
-       // TODO
+        //一次http传输结束关闭tcp链接
+        close_http(tcp);
 
 
         printf("!! final close\n");

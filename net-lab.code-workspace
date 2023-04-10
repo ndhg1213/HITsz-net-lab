@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"cmake.generator": "MinGW Makefiles",
+		"files.associations": {
+			"driver.h": "c",
+			"utils.h": "c"
+		}
+	}
+}

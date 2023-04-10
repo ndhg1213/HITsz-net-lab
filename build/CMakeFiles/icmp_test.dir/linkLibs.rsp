@@ -1,0 +1,1 @@
+  -L"C:/Users/asus/net-lab/./Npcap/Lib"  -L"C:/Users/asus/net-lab/./Npcap/Lib/x64"  -lwpcap -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
