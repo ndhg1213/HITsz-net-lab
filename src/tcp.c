@@ -330,7 +330,7 @@ void tcp_in(buf_t* buf, uint8_t* src_ip) {
             tcp_connect_close(connect);
         }
 
-        //服务端收到的第一个包必须是第一次握手j即syn有效
+        //服务端收到的第一个包必须是第一次握手即syn有效
         else if(flags.syn == 0){
             printf("!!! reset tcp !!!\n");
             connect->next_seq = 0;
@@ -439,11 +439,6 @@ void tcp_in(buf_t* buf, uint8_t* src_ip) {
         break;
 
     case TCP_FIN_WAIT_1:
-
-        /*
-        18、如果收到FIN && ACK，则close_tcp直接关闭TCP
-            如果只收到ACK，则将状态转为TCP_FIN_WAIT_2
-        */
 
         //如果收到fin&&ack有效即第三次挥手则直接关闭链接
         if(flags.fin == 1 && flags.ack == 1){
